@@ -6,7 +6,7 @@
 
 struct AllocationInfo
 {
-	uint32 BlockStart,BlockSize;;
+	uint32 BlockStart,BlockSize;
 };
 
 const uint32 MaxNumberOfAllocations = (KERNEL_HEAP_MAX-KERNEL_HEAP_START)/PAGE_SIZE;
@@ -90,7 +90,7 @@ void* kmalloc(unsigned int size)
 	{
 		struct Frame_Info *FreeFrame;
 		allocate_frame(&FreeFrame);
-		map_frame(ptr_page_directory,FreeFrame,(void*)(BestBlockStart + (i*PAGE_SIZE)),PERM_WRITEABLE | PERM_PRESENT);
+		map_frame(ptr_page_directory,FreeFrame,(void*)(BestBlockStart + (i*PAGE_SIZE)),PERM_WRITEABLE);
 		FreeFrame->va = BestBlockStart + (i*PAGE_SIZE);
 	}
 
@@ -158,10 +158,9 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 
 	uint32 *PageTable;
 	get_page_table(ptr_page_directory,(void*)virtual_address,&PageTable);
-	if(PageTable != NULL && (PageTable[PTX(virtual_address)] & PERM_PRESENT))
-	{
-		return PageTable[PTX(virtual_address)] & 0xfffff000;
-	}
+
+	if(PageTable[PTX(virtual_address)] & PERM_PRESENT)
+		return (PageTable[PTX(virtual_address)] >> 12) << 12;
 
 	return 0;
 }
