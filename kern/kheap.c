@@ -38,18 +38,8 @@ int FindBlockIndex(uint32 BlockStart)
 	return -1;
 }
 
-void* kmalloc(unsigned int size)
+uint32 BestFitStrategy(uint32 PagesToAllocate)
 {
-	//TODO: [PROJECT 2019 - MS1 - [1] Kernel Heap] kmalloc()
-	// Write your code here, remove the panic and write your code
-
-	//kpanic_into_prompt("kmalloc() is not implemented yet...!!");
-	//NOTE: Allocation is based on Best FIT strategy
-	//NOTE: All kernel heap allocations are multiples of PAGE_SIZE (4KB)
-	//refer to the project presentation and documentation for details
-
-	size = ROUNDUP(size,PAGE_SIZE);
-	uint32 PagesToAllocate = size / PAGE_SIZE;
 	uint32 BestBlockStart = 0,BestBlockSize = 0xffffffff;
 	uint32 CurrentBlockSize = 0;
 	uint32 CurrentAddress = KERNEL_HEAP_START;
@@ -80,6 +70,30 @@ void* kmalloc(unsigned int size)
 		BestBlockStart = CurrentAddress - CurrentBlockSize*PAGE_SIZE;
 		BestBlockSize  = CurrentBlockSize;
 	}
+
+	if(BestBlockStart == 0)
+	{
+		return 0;
+	}
+
+	return BestBlockStart;
+
+}
+
+void* kmalloc(unsigned int size)
+{
+	//TODO: [PROJECT 2019 - MS1 - [1] Kernel Heap] kmalloc()
+	// Write your code here, remove the panic and write your code
+
+	//kpanic_into_prompt("kmalloc() is not implemented yet...!!");
+	//NOTE: Allocation is based on Best FIT strategy
+	//NOTE: All kernel heap allocations are multiples of PAGE_SIZE (4KB)
+	//refer to the project presentation and documentation for details
+
+	size = ROUNDUP(size,PAGE_SIZE);
+	uint32 PagesToAllocate = size / PAGE_SIZE;
+
+	uint32 BestBlockStart = BestFitStrategy(PagesToAllocate);
 
 	if(BestBlockStart == 0)
 	{
@@ -160,7 +174,9 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 	get_page_table(ptr_page_directory,(void*)virtual_address,&PageTable);
 
 	if(PageTable[PTX(virtual_address)] & PERM_PRESENT)
-		return (PageTable[PTX(virtual_address)] >> 12) << 12;
+	{
+		return PageTable[PTX(virtual_address)] & 0xfffff000;
+	}
 
 	return 0;
 }

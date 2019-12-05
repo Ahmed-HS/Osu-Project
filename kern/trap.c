@@ -438,21 +438,17 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
 
 //Handle the page fault
 
-void Place(struct Env * curenv, uint32 fault_va)
+void PlacePageInWorkingSet(struct Env * curenv, uint32 fault_va,int Index)
 {
-	//cprintf("Placement\n");
-	//cprintf("Faulted page va : %x \n", fault_va);
+
 	struct Frame_Info *NewFrame;
 	allocate_frame(&NewFrame);
 	map_frame(curenv->env_page_directory,NewFrame,(void*)fault_va,PERM_USER|PERM_WRITEABLE);
 	int ReadResult = pf_read_env_page(curenv,(void*)fault_va);
 	if(ReadResult == E_PAGE_NOT_EXIST_IN_PF)
 	{
-		//cprintf("USER_HEAP_MAX : %x \n",USER_HEAP_MAX);
-		//cprintf("USTACKTOP : %x \n",USTACKTOP);
 		if(fault_va >= USTACKBOTTOM && fault_va <= USTACKTOP)
 		{
-			//cprintf("Faulted page is a stack page : %x \n", fault_va);
 			int AddResult = pf_add_empty_env_page(curenv,fault_va,1);
 			if(AddResult == E_NO_PAGE_FILE_SPACE)
 			{
@@ -463,6 +459,12 @@ void Place(struct Env * curenv, uint32 fault_va)
 		{
 			panic("yare yare\n");
 		}
+	}
+
+	if(Index != -1)
+	{
+		env_page_ws_set_entry(curenv,Index,fault_va);
+		return;
 	}
 
 	for(uint32 i = 0; i< curenv->page_WS_max_size ;i++)
@@ -476,6 +478,31 @@ void Place(struct Env * curenv, uint32 fault_va)
 
 }
 
+int LRUPolicy(struct Env * curenv, uint32 fault_va)
+{
+	uint32 LeastUsed = 0xffffffff;
+	uint32 ReplacedIndex,PageTimeStamp;
+	for(uint32 i = 0; i< curenv->page_WS_max_size ;i++)
+	{
+		PageTimeStamp = env_page_ws_get_time_stamp(curenv,i);
+		if(PageTimeStamp < LeastUsed)
+		{
+			ReplacedIndex = i;
+			LeastUsed = PageTimeStamp;
+		}
+	}
+	uint32 ReplacedAddress= env_page_ws_get_virtual_address(curenv,ReplacedIndex);
+	uint32 *PageTable;
+	struct Frame_Info* ReplacedFrame = get_frame_info(curenv->env_page_directory,(void*)ReplacedAddress,&PageTable);
+	if(PageTable[PTX(ReplacedAddress)] & PERM_MODIFIED)
+	{
+		pf_update_env_page(curenv,(void*)ReplacedAddress,ReplacedFrame);
+	}
+	unmap_frame(curenv->env_page_directory,(void*)ReplacedAddress);
+	env_page_ws_clear_entry(curenv,ReplacedIndex);
+	return ReplacedIndex;
+}
+
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
 {
 	//TODO: [PROJECT 2019 - MS1 + MS2 - [2] Page Fault Handler]
@@ -487,35 +514,12 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 
 	if(env_page_ws_get_size(curenv) < curenv->page_WS_max_size)
 	{
-		Place(curenv,fault_va);
+		PlacePageInWorkingSet(curenv,fault_va,-1);
 	}
 	else
 	{
-		//cprintf("Replacement\n");
-		//cprintf("Faulted page va : %x \n", fault_va);
-		uint32 LeastUsed = 0xffffffff;
-		uint32 ReplacedIndex,PageTimeStamp;
-		for(uint32 i = 0; i< curenv->page_WS_max_size ;i++)
-		{
-			//cprintf("Time stamp : %d \n",curenv->ptr_pageWorkingSet[i].time_stamp);
-			PageTimeStamp = env_page_ws_get_time_stamp(curenv,i);
-			if(PageTimeStamp < LeastUsed)
-			{
-				ReplacedIndex = i;
-				LeastUsed = PageTimeStamp;
-			}
-		}
-		uint32 ReplacedAddress= env_page_ws_get_virtual_address(curenv,ReplacedIndex);
-		uint32 *PageTable;
-		struct Frame_Info* ReplacedFrame = get_frame_info(curenv->env_page_directory,(void*)ReplacedAddress,&PageTable);
-		if(PageTable[PTX(ReplacedAddress)] & PERM_MODIFIED)
-		{
-			pf_update_env_page(curenv,(void*)ReplacedAddress,ReplacedFrame);
-		}
-		unmap_frame(curenv->env_page_directory,(void*)ReplacedAddress);
-		env_page_ws_clear_entry(curenv,ReplacedIndex);
-		Place(curenv,fault_va);
-
+		int ReplacedIndex = LRUPolicy(curenv,fault_va);
+		PlacePageInWorkingSet(curenv,fault_va,ReplacedIndex);
 	}
 
 }

@@ -554,7 +554,9 @@ void * create_page_table(uint32 *ptr_page_directory, const uint32 virtual_addres
 	}
 
 	tlbflush();
+
 	ptr_page_directory[PDX(virtual_address)] = kheap_physical_address((uint32)KHeapAddress) | PERM_USER | PERM_WRITEABLE | PERM_PRESENT;
+
 	return (void*)KHeapAddress;
 }
 
