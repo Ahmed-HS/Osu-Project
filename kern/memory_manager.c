@@ -774,12 +774,54 @@ void allocateMem(struct Env* e, uint32 virtual_address, uint32 size)
 {
 	//TODO: [PROJECT 2019 - MS2 - [4] User Heap] allocateMem() [Kernel Side]
 	// Write your code here, remove the panic and write your code
-	panic("allocateMem() is not implemented yet...!!");
+	//panic("allocateMem() is not implemented yet...!!");
 
 	//This function should allocate ALL pages of the required range in the PAGE FILE
 	//and allocate NOTHING in the main memory
+
+	size = ROUNDUP(size,PAGE_SIZE);
+	size /= PAGE_SIZE;
+
+	while(size--)
+	{
+		int AddResult = pf_add_empty_env_page(curenv,virtual_address,1);
+		if(AddResult == E_NO_PAGE_FILE_SPACE)
+		{
+			panic("ERROR: No enough virtual space on the page file");
+		}
+		virtual_address += PAGE_SIZE;
+		if(virtual_address == USER_HEAP_MAX)
+		{
+			virtual_address = USER_HEAP_START;
+		}
+	}
 }
 
+
+int IsInWorkingSet(struct Env* e, uint32 virtual_address)
+{
+	for(uint32 i = 0; i< e->page_WS_max_size ;i++)
+	{
+		if(e->ptr_pageWorkingSet[i].virtual_address == virtual_address)
+		{
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+bool IsTableFree(uint32 *PageTable)
+{
+	for(int i =0 ; i< 1024; i++)
+	{
+		if(PageTable[i] != 0)
+		{
+			return 0;
+		}
+	}
+	return 1;
+}
 
 // [2] freeMem
 
@@ -787,13 +829,37 @@ void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 {
 	//TODO: [PROJECT 2019 - MS2 - [4] User Heap] freeMem() [Kernel Side]
 	// Write your code here, remove the panic and write your code
-	panic("freeMem() is not implemented yet...!!");
+	//panic("freeMem() is not implemented yet...!!");
 
 	//This function should:
 	//1. Free ALL pages of the given range from the Page File
 	//2. Free ONLY pages that are resident in the working set from the memory
 	//3. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
-
+	size = ROUNDUP(size,PAGE_SIZE);
+	size /= PAGE_SIZE;
+	while(size--)
+	{
+		pf_remove_env_page(e,virtual_address);
+		int PageIndex = IsInWorkingSet(e,virtual_address);
+		if(PageIndex != -1)
+		{
+			env_page_ws_clear_entry(e,PageIndex);
+			unmap_frame(e->env_page_directory,(void*)virtual_address);
+			uint32 *PageTable;
+			get_page_table(e->env_page_directory,(void*)virtual_address,&PageTable);
+			if(PageTable!= NULL && IsTableFree(PageTable))
+			{
+				uint32 PhysicalAddress = e->env_page_directory[PDX(virtual_address)] & 0xfffff000;
+				struct Frame_Info *TableFrame = to_frame_info(PhysicalAddress);
+				free_frame(TableFrame);
+			}
+		}
+		virtual_address += PAGE_SIZE;
+		if(virtual_address == USER_HEAP_MAX)
+		{
+			virtual_address = USER_HEAP_START;
+		}
+	}
 }
 
 void __freeMem_with_buffering(struct Env* e, uint32 virtual_address, uint32 size)

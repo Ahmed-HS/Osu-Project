@@ -16,11 +16,109 @@
 //============================ REQUIRED FUNCTIONS ==================================//
 //==================================================================================//
 
+struct AllocationInfo
+{
+	uint32 BlockStart,BlockSize,StartIndex;
+};
+
+
+uint32 NumberOfPages = (USER_HEAP_MAX - USER_HEAP_START +1 ) /PAGE_SIZE;
+bool UsedPages[(USER_HEAP_MAX - USER_HEAP_START +1 ) /PAGE_SIZE];
+struct AllocationInfo AllAllocations[(USER_HEAP_MAX - USER_HEAP_START +1 ) / PAGE_SIZE];
+
+int AddBlock(uint32 BlockStart,uint32 StartIndex,uint32 BlockSize)
+{
+	for(uint32 i = 0; i< NumberOfPages; i++)
+	{
+		if(AllAllocations[i].BlockStart == 0)
+		{
+			AllAllocations[i].BlockStart = BlockStart;
+			AllAllocations[i].BlockSize = BlockSize;
+			AllAllocations[i].StartIndex = StartIndex;
+			while(BlockSize--)
+			{
+				UsedPages[StartIndex] = 1;
+				StartIndex = (StartIndex + 1) % NumberOfPages;
+			}
+			return i;
+		}
+	}
+	return -1;
+}
+
+int FindBlockIndex(uint32 BlockStart)
+{
+	for(uint32 i = 0; i< NumberOfPages; i++)
+	{
+		if(AllAllocations[i].BlockStart == BlockStart)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+
+
+uint32 NextFitStrategy(uint32 PagesToAllocate)
+{
+	uint32 AllocationStart = 0;
+	uint32 StartIndex = 0;
+	uint32 CurrentBlockSize = 0;
+	static uint32 CurrentAddress = USER_HEAP_START;
+	static uint32 i = 0;
+	uint32 SeenPages = 0;
+	bool Counting = 0;
+
+	while(SeenPages < NumberOfPages)
+	{
+		if(UsedPages[i] == 0)
+		{
+			if(!Counting)
+			{
+				StartIndex = i;
+				AllocationStart = CurrentAddress;
+				Counting = 1;
+			}
+
+			CurrentBlockSize++;
+			if(CurrentBlockSize >= PagesToAllocate)
+			{
+				AddBlock(AllocationStart,StartIndex,PagesToAllocate);
+				CurrentAddress+= PAGE_SIZE;
+				if(CurrentAddress == USER_HEAP_MAX)
+				{
+					CurrentAddress = USER_HEAP_START;
+				}
+				i = (i + 1) % NumberOfPages;
+				return AllocationStart;
+			}
+		}
+		else
+		{
+			CurrentBlockSize = 0;
+			Counting = 0;
+		}
+
+		CurrentAddress+= PAGE_SIZE;
+		if(CurrentAddress == USER_HEAP_MAX)
+		{
+			CurrentAddress = USER_HEAP_START;
+		}
+		i = (i + 1) % NumberOfPages;
+		SeenPages++;
+	}
+
+	return 0;
+
+}
+
+
 void* malloc(uint32 size)
 {
 	//TODO: [PROJECT 2019 - MS2 - [4] User Heap] malloc() [User Side]
 	// Write your code here, remove the panic and write your code
-	panic("malloc() is not implemented yet...!!");
+	//panic("malloc() is not implemented yet...!!");
 
 	// Steps:
 	//	1) Implement NEXT FIT strategy to search the heap for suitable space
@@ -36,6 +134,19 @@ void* malloc(uint32 size)
 
 	//Use sys_isUHeapPlacementStrategyNEXTFIT()
 	//to check the current strategy
+	size = ROUNDUP(size,PAGE_SIZE);
+	size /= PAGE_SIZE;
+	uint32 AllocationStart;
+	if(sys_isUHeapPlacementStrategyNEXTFIT())
+	{
+		AllocationStart = NextFitStrategy(size);
+		if(AllocationStart != 0)
+		{
+			//cprintf("Allocated %d Pages \n",size);
+			sys_allocateMem(AllocationStart,size*PAGE_SIZE);
+		}
+		return (void*)AllocationStart;
+	}
 
 	return 0;
 }
@@ -54,11 +165,29 @@ void free(void* virtual_address)
 {
 	//TODO: [PROJECT 2019 - MS2 - [4] User Heap] free() [User Side]
 	// Write your code here, remove the panic and write your code
-	panic("free() is not implemented yet...!!");
+	//panic("free() is not implemented yet...!!");
 
 	//you shold get the size of the given allocation using its address
 	//you need to call sys_freeMem()
 	//refer to the project presentation and documentation for details
+
+	uint32 BlockStart = (uint32)virtual_address;
+	int BlockIndex = FindBlockIndex(BlockStart);
+	if(BlockIndex == -1)
+	{
+		return;
+	}
+	sys_freeMem((uint32)virtual_address,AllAllocations[BlockIndex].BlockSize*PAGE_SIZE);
+	uint32 AllocationSize = AllAllocations[BlockIndex].BlockSize;
+	uint32 StartIndex = AllAllocations[BlockIndex].StartIndex;
+
+	while(AllocationSize--)
+	{
+		UsedPages[StartIndex] = 0;
+		StartIndex = (StartIndex + 1) % NumberOfPages;
+	}
+	AllAllocations[BlockIndex].BlockStart = 0;
+	AllAllocations[BlockIndex].BlockSize = 0;
 
 }
 

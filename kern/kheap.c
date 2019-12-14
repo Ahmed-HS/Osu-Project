@@ -9,8 +9,8 @@ struct AllocationInfo
 	uint32 BlockStart,BlockSize;
 };
 
-const uint32 MaxNumberOfAllocations = (KERNEL_HEAP_MAX-KERNEL_HEAP_START)/PAGE_SIZE;
-struct AllocationInfo AllAllocations[(KERNEL_HEAP_MAX-KERNEL_HEAP_START)/PAGE_SIZE];
+const uint32 MaxNumberOfAllocations = (KERNEL_HEAP_MAX-KERNEL_HEAP_START + 1)/PAGE_SIZE;
+struct AllocationInfo AllAllocations[(KERNEL_HEAP_MAX-KERNEL_HEAP_START + 1)/PAGE_SIZE];
 
 int AddBlock(uint32 BlockStart,uint32 BlockSize)
 {
@@ -135,9 +135,7 @@ void kfree(void* virtual_address)
 	{
 		uint32 *PageTable;
 		uint32 CurrentAddress = BlockStart + (i*PAGE_SIZE);
-		struct Frame_Info *CurrentFrame = get_frame_info(ptr_page_directory,(void*)CurrentAddress,&PageTable);
-		free_frame(CurrentFrame);
-		PageTable[PTX(CurrentAddress)] = 0;
+		unmap_frame(ptr_page_directory,(void*)CurrentAddress);
 	}
 	AllAllocations[BlockIndex].BlockStart = 0;
 	AllAllocations[BlockIndex].BlockSize = 0;

@@ -511,7 +511,7 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 
 	//refer to the project documentation for the detailed steps
 	//TODO: [PROJECT 2019 - BONUS5] Change WS Size according to “Program Priority”
-
+	//cprintf("Fault\n");
 	if(env_page_ws_get_size(curenv) < curenv->page_WS_max_size)
 	{
 		PlacePageInWorkingSet(curenv,fault_va,-1);
