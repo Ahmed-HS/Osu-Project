@@ -478,12 +478,65 @@ void PlacePageInWorkingSet(struct Env * curenv, uint32 fault_va,int Index)
 
 }
 
+int ClockPolicy(struct Env * curenv, uint32 fault_va)
+{
+	uint32 ReplacedIndex2;
+	uint32 vr;
+	while(1)
+	{
+		 vr=env_page_ws_get_virtual_address(curenv,curenv->page_last_WS_index);
+
+		int permession=pt_get_page_permissions(curenv,vr);
+	    if ((permession&PERM_USED)==0)
+		 {
+			ReplacedIndex2=curenv->page_last_WS_index;
+
+			if(curenv->page_last_WS_index+1<curenv->page_WS_max_size)
+			{
+				curenv->page_last_WS_index++;
+			}
+			else
+			{
+				 curenv->page_last_WS_index=0;
+			}
+
+			break;
+		 }
+	     else
+		 {
+		    pt_set_page_permissions(curenv,vr,0,PERM_USED);
+		 }
+
+		 if(curenv->page_last_WS_index+1<curenv->page_WS_max_size)
+		 {
+		      curenv->page_last_WS_index++;
+		 }
+		 else
+		 {
+			 curenv->page_last_WS_index=0;
+		 }
+
+
+	}
+	uint32 ReplacedAddress= env_page_ws_get_virtual_address(curenv,ReplacedIndex2);
+	uint32 *PageTable;
+	struct Frame_Info* ReplacedFrame = get_frame_info(curenv->env_page_directory,(void*)ReplacedAddress,&PageTable);
+	if(PageTable[PTX(ReplacedAddress)] & PERM_MODIFIED)
+	{
+		pf_update_env_page(curenv,(void*)ReplacedAddress,ReplacedFrame);
+	}
+	unmap_frame(curenv->env_page_directory,(void*)ReplacedAddress);
+	env_page_ws_clear_entry(curenv,ReplacedIndex2);
+	return ReplacedIndex2;
+
+}
 int LRUPolicy(struct Env * curenv, uint32 fault_va)
 {
 	uint32 LeastUsed = 0xffffffff;
 	uint32 ReplacedIndex,PageTimeStamp;
 	for(uint32 i = 0; i< curenv->page_WS_max_size ;i++)
 	{
+
 		PageTimeStamp = env_page_ws_get_time_stamp(curenv,i);
 		if(PageTimeStamp < LeastUsed)
 		{
@@ -511,15 +564,27 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 
 	//refer to the project documentation for the detailed steps
 	//TODO: [PROJECT 2019 - BONUS5] Change WS Size according to “Program Priority”
-	//cprintf("Fault\n");
+
 	if(env_page_ws_get_size(curenv) < curenv->page_WS_max_size)
 	{
 		PlacePageInWorkingSet(curenv,fault_va,-1);
 	}
 	else
 	{
-		int ReplacedIndex = LRUPolicy(curenv,fault_va);
-		PlacePageInWorkingSet(curenv,fault_va,ReplacedIndex);
+
+
+		if (isPageReplacmentAlgorithmLRU())
+		{
+			int ReplacedIndex = LRUPolicy(curenv,fault_va);
+			PlacePageInWorkingSet(curenv,fault_va,ReplacedIndex);
+		}
+		else if (isPageReplacmentAlgorithmCLOCK())
+		{
+			int ReplacedIndex2 = ClockPolicy(curenv,fault_va);
+			PlacePageInWorkingSet(curenv,fault_va,ReplacedIndex2);
+
+		}
+		//PlacePageInWorkingSet(curenv,fault_va,ReplacedIndex);
 	}
 
 }
