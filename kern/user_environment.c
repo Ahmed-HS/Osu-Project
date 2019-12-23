@@ -590,6 +590,7 @@ void initialize_environment(struct Env* e, uint32* ptr_user_page_directory
 	e->nNotModifiedPages=0;
 
 	e->nClocks = 0;
+	e->currentQ = 0;
 	//e->shared_free_address = USER_SHARED_MEM_START;
 
 	//Completes other environment initializations, (envID, status and most of registers)

@@ -37,7 +37,32 @@ int FindBlockIndex(uint32 BlockStart)
 	}
 	return -1;
 }
-
+uint32 FirstFitStrategy(uint32 PagesToAllocate)
+{
+	uint32 Counter;
+	uint32 Start = 0;
+	uint32 CurrentAddress = KERNEL_HEAP_START;
+	while(CurrentAddress < KERNEL_HEAP_MAX)
+	{
+		uint32 *PageTable;
+		struct Frame_Info *CurrentFrame = get_frame_info(ptr_page_directory,(void*)CurrentAddress,&PageTable);
+		if(CurrentFrame == NULL)
+			{
+				Counter++;
+			}
+		else
+		{
+			Counter = 0;
+		}
+		CurrentAddress += PAGE_SIZE;
+		if(Counter >= PagesToAllocate)
+		{
+			Start = CurrentAddress - Counter*PAGE_SIZE;
+			break;
+		}
+	}
+	return Start;
+}
 uint32 BestFitStrategy(uint32 PagesToAllocate)
 {
 	uint32 BestBlockStart = 0,BestBlockSize = 0xffffffff;
@@ -89,11 +114,17 @@ void* kmalloc(unsigned int size)
 	//NOTE: Allocation is based on Best FIT strategy
 	//NOTE: All kernel heap allocations are multiples of PAGE_SIZE (4KB)
 	//refer to the project presentation and documentation for details
-
+	uint32 BestBlockStart;
 	size = ROUNDUP(size,PAGE_SIZE);
 	uint32 PagesToAllocate = size / PAGE_SIZE;
-
-	uint32 BestBlockStart = BestFitStrategy(PagesToAllocate);
+	if(isKHeapPlacementStrategyBESTFIT())
+	{
+		BestBlockStart = BestFitStrategy(PagesToAllocate);
+	}
+	else if(isKHeapPlacementStrategyFIRSTFIT())
+	{
+		BestBlockStart = FirstFitStrategy(PagesToAllocate);
+	}
 
 	if(BestBlockStart == 0)
 	{

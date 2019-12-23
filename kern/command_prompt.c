@@ -44,6 +44,7 @@ extern uint32 enableBuffering();
 extern uint32 isBufferingEnabled();
 extern void setModifiedBufferLength(uint32 length) ;
 extern uint32 getModifiedBufferLength();
+extern int test_krealloc();
 
 int execute_command(char *command_string);
 int command_writeusermem(int number_of_arguments, char **arguments);
@@ -84,7 +85,8 @@ int command_get_modified_buffer_length(int number_of_arguments, char **arguments
 
 //2016: Kernel Heap Tests
 extern int test_kmalloc();
-extern int test_kmalloc_nextfit();
+extern int test_kmalloc_firstfit1();
+extern int test_kmalloc_firstfit2();
 extern int test_kmalloc_bestfit1();
 extern int test_kmalloc_bestfit2();
 extern int test_kfree();
@@ -98,6 +100,7 @@ int command_test_kfree(int number_of_arguments, char **arguments);
 int command_test_kheap_phys_addr(int number_of_arguments, char **arguments);
 int command_test_kheap_virt_addr(int number_of_arguments, char **arguments);
 int command_test_three_creation_functions(int number_of_arguments, char **arguments);
+int command_test_krealloc(int number_of_arguments, char **arguments);
 
 //2018
 int command_sch_RR(int number_of_arguments, char **arguments);
@@ -164,6 +167,7 @@ struct Command commands[] =
 		{"tstkphysaddr", "Kernel Heap: test kheap_phys_addr", command_test_kheap_phys_addr},
 		{"tstkvirtaddr", "Kernel Heap: test kheap_virt_addr", command_test_kheap_virt_addr},
 		{"tst3functions", "Env Load: test the creation of new dir, tables and pages WS", command_test_three_creation_functions},
+		{"tstkrealloc","Kernel realloc: test realloc (virtual address = 0)",command_test_krealloc},
 
 };
 
@@ -659,6 +663,7 @@ int command_meminfo(int number_of_arguments, char **arguments)
 	return 0;
 }
 
+
 int command_run_program(int number_of_arguments, char **arguments)
 {
 	struct Env* env;
@@ -1070,24 +1075,21 @@ int command_test_kmalloc(int number_of_arguments, char **arguments)
 	if (number_of_arguments==2)
 		testNum = strtol(arguments[1], NULL, 10);
 
-	if (isKHeapPlacementStrategyNEXTFIT())
+	if (isKHeapPlacementStrategyFIRSTFIT())
 	{
-		cprintf("Inside the NEXTFIT\n");
 		if (testNum == 0)
 		{
 			cprintf("Error: [Kernel.NextFit] must specify the test number (1 or 2) as an argument\n");
 			return 0;
 		}
-		//Test cont. allocation
+		//Test FIRST FIT allocation
 		if (testNum == 1)
-			test_kmalloc();
-		//Test nextfit strategy
+			test_kmalloc_firstfit1();
 		else if (testNum == 2)
-			test_kmalloc_nextfit();
+			test_kmalloc_firstfit2();
 	}
 	else if (isKHeapPlacementStrategyBESTFIT())
 	{
-		cprintf("Inside the BESTFIT\n");
 		if (testNum == 0)
 		{
 			cprintf("Error: [Kernel.BestFit] must specify the test number (1 or 2) as an argument\n");
@@ -1106,12 +1108,14 @@ int command_test_kmalloc(int number_of_arguments, char **arguments)
 int command_test_kfree(int number_of_arguments, char **arguments)
 {
 	if (isKHeapPlacementStrategyBESTFIT())
-		{
-			test_kfree_bestfit();
-		}
-		else
-			test_kfree();
-		return 0;
+	{
+		test_kfree_bestfit();
+	}
+	else
+	{
+		test_kfree();
+	}
+	return 0;
 }
 int command_test_kheap_phys_addr(int number_of_arguments, char **arguments)
 {
@@ -1126,6 +1130,10 @@ int command_test_kheap_virt_addr(int number_of_arguments, char **arguments)
 int command_test_three_creation_functions(int number_of_arguments, char **arguments)
 {
 	test_three_creation_functions();
+	return 0;
+}
+int command_test_krealloc(int number_of_arguments, char **arguments) {
+	test_krealloc();
 	return 0;
 }
 

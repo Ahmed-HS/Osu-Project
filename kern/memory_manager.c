@@ -845,17 +845,15 @@ void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 		{
 			env_page_ws_clear_entry(e,PageIndex);
 			unmap_frame(e->env_page_directory,(void*)virtual_address);
-
-		}
-
-		uint32 *PageTable;
-		get_page_table(e->env_page_directory,(void*)virtual_address,&PageTable);
-		if(PageTable!= NULL && IsTableFree(PageTable))
-		{
-			uint32 PhysicalAddress = e->env_page_directory[PDX(virtual_address)] & 0xfffff000;
-			e->env_page_directory[PDX(virtual_address)] = 0;
-			struct Frame_Info *TableFrame = to_frame_info(PhysicalAddress);
-			free_frame(TableFrame);
+			uint32 *PageTable;
+			get_page_table(e->env_page_directory,(void*)virtual_address,&PageTable);
+			if(PageTable!= NULL && IsTableFree(PageTable))
+			{
+				uint32 PhysicalAddress = e->env_page_directory[PDX(virtual_address)] & 0xfffff000;
+				e->env_page_directory[PDX(virtual_address)] = 0;
+				struct Frame_Info *TableFrame = to_frame_info(PhysicalAddress);
+				free_frame(TableFrame);
+			}
 		}
 
 		virtual_address += PAGE_SIZE;
